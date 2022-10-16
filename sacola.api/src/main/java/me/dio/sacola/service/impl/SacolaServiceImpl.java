@@ -5,12 +5,14 @@ import me.dio.sacola.enumeration.FormaPagamento;
 import me.dio.sacola.model.Item;
 import me.dio.sacola.model.Restaurante;
 import me.dio.sacola.model.Sacola;
+import me.dio.sacola.repository.ItemRepository;
 import me.dio.sacola.repository.ProdutoRepository;
 import me.dio.sacola.repository.SacolaRepository;
 import me.dio.sacola.resource.dto.ItemDto;
 import me.dio.sacola.service.SacolaService;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -18,6 +20,7 @@ import java.util.List;
 public class SacolaServiceImpl implements SacolaService {
     private final SacolaRepository sacolaRepository;
     private final ProdutoRepository produtoRepository;
+    private final ItemRepository itemRepository;
 
     @Override
     public Item incluirItemNaSacola(ItemDto itemDto) {
@@ -43,7 +46,27 @@ public class SacolaServiceImpl implements SacolaService {
         } else {
             Restaurante restauranteAtual = itensDaSacola.get(0).getProduto().getRestaurante();
             Restaurante restauranteDoItemParaAdicionar = itemParaSerInserido.getProduto().getRestaurante();
+            if (restauranteAtual.equals(restauranteDoItemParaAdicionar)) {
+                itensDaSacola.add(itemParaSerInserido);
+            } else {
+                throw new RuntimeException("Não é possível adicionar produtos de restaurantes diferentes. Feche ou esvazie a sacola.");
+            }
         }
+
+        List<Double> valorDosItens = new ArrayList<>();
+        for (Item itemDaSacola: itensDaSacola){
+            double valorTotalItem = itemDaSacola.getProduto().getValorUnitario() * itemDaSacola.getQuantidade();
+            valorDosItens.add(valorTotalItem);
+        }
+
+        double valorTotalSacola = valorDosItens.stream()
+                .mapToDouble(valorTotalDeCadaItem -> valorTotalDeCadaItem)
+                .sum();
+
+        sacola.setValorTotal(valorTotalSacola);
+
+        sacolaRepository.save(sacola);
+        return itemRepository.save(itemParaSerInserido);
     }
 
     @Override
@@ -56,18 +79,18 @@ public class SacolaServiceImpl implements SacolaService {
     }
 
     @Override
-    public Sacola fecharSacola(Long id, int formaPagamento) {
+    public Sacola fecharSacola(Long id, int numeroFormaPagamento) {
         Sacola sacola = verSacola(id);
 
         if (sacola.getItens().isEmpty()) {
-            throw new ("Inclua itens na sacola!");
+            throw new RuntimeException ("Inclua itens na sacola!");
         }
 
         FormaPagamento formaPagamento =
-            formaPagamento == 0 ? FormaPagamento.DINHEIRO : FormaPagamento.MAQUINETA;
+            numeroFormaPagamento == 0 ? FormaPagamento.DINHEIRO : FormaPagamento.MAQUINETA;
 
         sacola.setFormaPagamento(formaPagamento);
         sacola.setFechada(true);
-        return sacolaRepository.save(Sacola);
+        return sacolaRepository.save(sacola);
     }
 }
